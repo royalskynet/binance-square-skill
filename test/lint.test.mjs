@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lint } from '../scripts/lint.mjs';
+import { lint, skips } from '../scripts/lint.mjs';
 
 const GOOD = `$BTC 一天跌 4.9%，被清掉的多單有 3.56 億美元。
 
@@ -10,7 +10,7 @@ const GOOD = `$BTC 一天跌 4.9%，被清掉的多單有 3.56 億美元。
 
 所以我現在不抄底。如果爆倉量降回平常水準、BTC 站回 68,000，我才會試小倉位。跌破 63,000 就繼續等。
 
-$BNB 跌 7.4%，比大餅深。平台幣在大盤出事的時候通常跌更多，我不會先碰它。
+$BNB 跌 7.4%，比大餅深。平台幣在大盤出事的時候通常跌更多，先不碰。
 
 你們是等站回再進，還是已經在分批撿了？
 
@@ -43,11 +43,11 @@ test('簡體字要擋', () => {
 });
 
 test('喊單用語要擋', () => {
-  assert.ok(lint(GOOD.replace('我不會先碰它', '這波穩賺')).some((e) => e.includes('喊單')));
+  assert.ok(lint(GOOD.replace('先不碰', '這波穩賺')).some((e) => e.includes('喊單')));
 });
 
 test('字數過長與段落太長要擋', () => {
-  const long = GOOD.replace('我不會先碰它。', '我不會先碰它。'.repeat(40));
+  const long = GOOD.replace('先不碰。', '先不碰。'.repeat(80));
   const errs = lint(long);
   assert.ok(errs.some((e) => e.startsWith('字數')));
   assert.ok(errs.some((e) => e.includes('每段')));
@@ -72,4 +72,16 @@ test('標籤數量要擋', () => {
 
 test('#話題 裡的簡體不算錯', () => {
   assert.ok(!lint(GOOD).some((e) => e.includes('簡體')));
+});
+
+test('frontmatter lint_skip: question 才跳過問句規則', () => {
+  const noQ = GOOD.replace('已經在分批撿了？', '已經在分批撿了。');
+  assert.ok(!lint(noQ, { skip: skips('---\nlint_skip: question\n---\n') }).some((e) => e.includes('問句')));
+  assert.deepEqual(skips('---\nstatus: draft\n---\n'), []);
+  assert.ok(lint(noQ.replace('$BTC', 'BTC').replace('$BNB', 'BNB'), { skip: ['question'] }).some((e) => e.includes('代幣')));
+});
+
+test('「我」太多要擋', () => {
+  assert.ok(!lint(GOOD).some((e) => e.includes('「我」')));
+  assert.ok(lint(GOOD.replace('先不碰', '我先不碰')).some((e) => e.includes('「我」')));
 });

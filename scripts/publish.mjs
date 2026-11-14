@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lint, body } from './lint.mjs';
+import { lint, body, skips } from './lint.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OFFICIAL = join(ROOT, 'vendor/binance-skills-hub/skills/binance/square-post/scripts/post-text.mjs');
@@ -27,7 +27,7 @@ if (/^status:\s*posted/m.test(md)) {
 }
 
 const text = body(md);
-const errors = lint(text);
+const errors = lint(text, { skip: skips(md) });
 if (errors.length) {
   errors.forEach((e) => console.error(`✗ ${e}`));
   process.exit(1);

@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const LIMITS = { minChars: 250, maxChars: 500, hookMax: 40, paraMax: 80, minParas: 4, maxEmoji: 2, maxCash: 3, maxTags: 5 };
+export const LIMITS = { minChars: 250, maxChars: 500, hookMax: 40, paraMax: 80, minParas: 4, maxEmoji: 2, maxCash: 3, maxTags: 5, maxI: 2 };
 
 // [規則名, 正則]；命中就算錯
 const SLOP = [
@@ -31,7 +31,13 @@ export function body(md) {
   return md.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 }
 
-export function lint(text, { toTw = opencc } = {}) {
+// 逐篇豁免：frontmatter 寫 `lint_skip: question` 才跳過該規則，要使用者對那一篇點頭過
+export function skips(md) {
+  const fm = md.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? '';
+  return (fm.match(/^lint_skip:\s*(.+)$/m)?.[1] ?? '').split(/[,\s]+/).filter(Boolean);
+}
+
+export function lint(text, { toTw = opencc, skip = [] } = {}) {
   const errors = [];
   const paras = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   const n = countChars(text);
@@ -48,10 +54,14 @@ export function lint(text, { toTw = opencc } = {}) {
   if (!CAUSAL.test(prose)) errors.push('沒有因果詞（因為／所以／代表／導致／意味），像在列數字');
   if (!CONDITION.test(prose)) errors.push('沒有條件詞（如果／除非／站回／跌破／守住），缺條件式計畫');
 
+  // 「我」留給操作計畫那句；分析段省主詞直接講判斷，句句「我看／我會」讀起來像日記
+  const selfRefs = (prose.match(/我/g) || []).length;
+  if (selfRefs > LIMITS.maxI) errors.push(`「我」${selfRefs} 個，最多 ${LIMITS.maxI} 個，分析句省掉主詞`);
+
   if (paras.length < LIMITS.minParas) errors.push(`只有 ${paras.length} 段，要至少 ${LIMITS.minParas} 段（空行分段）`);
   if (paras[0] && countChars(paras[0]) > LIMITS.hookMax) errors.push(`第一段 ${countChars(paras[0])} 字，鉤子要 ≤${LIMITS.hookMax} 字`);
   const lastProse = paras.filter((p) => p.replace(HASHTAG, '').trim()).at(-1) ?? '';
-  if (!/[？?]/.test(lastProse)) errors.push('最後一段沒有問句，缺引導互動');
+  if (!skip.includes('question') && !/[？?]/.test(lastProse)) errors.push('最後一段沒有問句，缺引導互動');
   paras.forEach((p, i) => {
     if (countChars(p) > LIMITS.paraMax) errors.push(`第 ${i + 1} 段 ${countChars(p)} 字，每段要 ≤${LIMITS.paraMax} 字`);
   });
@@ -92,7 +102,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error('用法：node scripts/lint.mjs <草稿.md>');
     process.exit(2);
   }
-  const errors = lint(body(readFileSync(file, 'utf8')));
+  const md = readFileSync(file, 'utf8');
+  const errors = lint(body(md), { skip: skips(md) });
   if (errors.length) {
     errors.forEach((e) => console.log(`✗ ${e}`));
     process.exit(1);
