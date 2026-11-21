@@ -21,6 +21,10 @@ if (!file) {
   process.exit(2);
 }
 const md = readFileSync(file, 'utf8');
+if (!/^status:[^\S\r\n]*\w+[^\S\r\n]*\r?$/m.test(md)) {
+  console.error('草稿缺少有效的 status: 狀態行；請先加入 status: draft，尚未發文');
+  process.exit(1);
+}
 if (/^status:\s*posted/m.test(md)) {
   console.error('這份已經發過了');
   process.exit(1);
