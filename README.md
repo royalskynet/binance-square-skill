@@ -22,7 +22,7 @@ cd binance-square-skill
 git clone --depth 1 --filter=blob:none --sparse https://github.com/binance/binance-skills-hub vendor/binance-skills-hub
 git -C vendor/binance-skills-hub sparse-checkout set skills/binance/square-post
 mkdir -p drafts
-node --test test/
+node --test 'test/*.test.mjs'
 ```
 
 Claude Code：把這個資料夾連結到 `~/.claude/skills/binance-square`。
